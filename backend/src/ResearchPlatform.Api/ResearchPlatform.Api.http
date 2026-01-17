@@ -1,0 +1,6 @@
+@ResearchPlatform.Api_HostAddress = http://localhost:5260
+
+GET {{ResearchPlatform.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

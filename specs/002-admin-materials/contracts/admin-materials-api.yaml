@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: Admin Materials API
+  description: API endpoints for admin materials management
+  version: 1.0.0
+  contact:
+    name: Research Platform Team
+
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Development server
+  - url: http://localhost:3000/api/v1
+    description: Nginx proxy (production-like)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /admin/materials:
+    get:
+      summary: List all materials
+      description: Returns all materials including inactive ones (admin view)
+      operationId: listMaterials
+      tags:
+        - Admin Materials
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: Filter by material type
+          schema:
+            $ref: '#/components/schemas/MaterialType'
+        - name: includeInactive
+          in: query
+          required: false
+          description: Include inactive (deleted) materials
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of materials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminMaterialDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/materials/{id}:
+    get:
+      summary: Get material detail
+      description: Returns material with signed URL for preview
+      operationId: getMaterial
+      tags:
+        - Admin Materials
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Material detail with signed URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMaterialDetailDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update material metadata
+      description: Updates title, description, type, order, or active status
+      operationId: updateMaterial
+      tags:
+        - Admin Materials
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMaterialRequest'
+      responses:
+        '200':
+          description: Updated material
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMaterialDto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete material (soft delete)
+      description: Sets material as inactive, preserves access logs
+      operationId: deleteMaterial
+      tags:
+        - Admin Materials
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Material deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/materials/upload:
+    post:
+      summary: Upload new material
+      description: Upload a file with metadata to create new material
+      operationId: uploadMaterial
+      tags:
+        - Admin Materials
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - type
+                - file
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                  description: Material title
+                description:
+                  type: string
+                  maxLength: 1000
+                  description: Optional description
+                type:
+                  $ref: '#/components/schemas/MaterialType'
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (max 1GB)
+            encoding:
+              file:
+                contentType: application/pdf, video/mp4, video/x-msvideo, video/quicktime, video/x-ms-wmv, text/plain, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      responses:
+        '201':
+          description: Material created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMaterialDto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from login endpoint
+
+  schemas:
+    MaterialType:
+      type: string
+      enum:
+        - Pdf
+        - Video
+        - Text
+      description: Type of material content
+
+    AdminMaterialDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        type:
+          $ref: '#/components/schemas/MaterialType'
+        fileExtension:
+          type: string
+          nullable: true
+        fileSizeBytes:
+          type: integer
+          format: int64
+          nullable: true
+        orderIndex:
+          type: integer
+        isActive:
+          type: boolean
+        accessCount:
+          type: integer
+          description: Number of times accessed by students
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - type
+        - orderIndex
+        - isActive
+        - accessCount
+        - createdAt
+        - updatedAt
+
+    AdminMaterialDetailDto:
+      allOf:
+        - $ref: '#/components/schemas/AdminMaterialDto'
+        - type: object
+          properties:
+            signedUrl:
+              type: string
+              format: uri
+              description: Pre-signed URL for file access (expires in 1 hour)
+          required:
+            - signedUrl
+
+    UpdateMaterialRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        type:
+          $ref: '#/components/schemas/MaterialType'
+        orderIndex:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+      required:
+        - title
+        - type
+        - orderIndex
+        - isActive
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: ValidationError
+            message: One or more validation errors occurred
+            details:
+              title: ["Title is required"]
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Unauthorized
+            message: Authentication token is missing or invalid
+
+    Forbidden:
+      description: Admin access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Forbidden
+            message: Admin role required for this operation
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: NotFound
+            message: Material not found
+
+tags:
+  - name: Admin Materials
+    description: Material management endpoints for administrators

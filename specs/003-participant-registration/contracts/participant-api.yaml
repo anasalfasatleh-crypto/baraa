@@ -1,0 +1,611 @@
+openapi: 3.0.3
+info:
+  title: Participant Registration API
+  description: API endpoints for participant registration, authentication, and management
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: API base path
+
+tags:
+  - name: Participant Auth
+    description: Public endpoints for participant registration and login
+  - name: Participant Profile
+    description: Authenticated participant endpoints
+  - name: Admin Participants
+    description: Admin endpoints for participant management
+
+paths:
+  # ============================================================
+  # PUBLIC ENDPOINTS (No authentication required)
+  # ============================================================
+
+  /participants/register:
+    post:
+      tags:
+        - Participant Auth
+      summary: Register a new participant
+      description: Creates a new participant account with auto-generated code
+      operationId: registerParticipant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantRegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantRegisterResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '409':
+          description: Login identifier already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /participants/login:
+    post:
+      tags:
+        - Participant Auth
+      summary: Authenticate participant
+      description: Login with username/email and password
+      operationId: loginParticipant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantLoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountLockedResponse'
+
+  /participants/refresh:
+    post:
+      tags:
+        - Participant Auth
+      summary: Refresh access token
+      description: Exchange refresh token for new access token
+      operationId: refreshParticipantToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantLoginResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================================
+  # AUTHENTICATED PARTICIPANT ENDPOINTS
+  # ============================================================
+
+  /participants/me:
+    get:
+      tags:
+        - Participant Profile
+      summary: Get current participant profile
+      description: Returns the authenticated participant's profile including their code
+      operationId: getParticipantProfile
+      security:
+        - participantAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantProfile'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /participants/me/change-password:
+    post:
+      tags:
+        - Participant Profile
+      summary: Change participant password
+      description: Change password (required after admin reset)
+      operationId: changeParticipantPassword
+      security:
+        - participantAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Validation error (password requirements not met)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /participants/logout:
+    post:
+      tags:
+        - Participant Profile
+      summary: Logout participant
+      description: Revokes the current refresh token
+      operationId: logoutParticipant
+      security:
+        - participantAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ============================================================
+  # ADMIN ENDPOINTS (Admin authentication required)
+  # ============================================================
+
+  /admin/participants:
+    get:
+      tags:
+        - Admin Participants
+      summary: List all participants
+      description: Get paginated list of participants with search capability
+      operationId: listParticipants
+      security:
+        - adminAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Search by code, login identifier, or phone number
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Participants list retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantListResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not authorized (admin only)
+
+  /admin/participants/{id}:
+    get:
+      tags:
+        - Admin Participants
+      summary: Get participant details
+      description: Get detailed information about a specific participant
+      operationId: getParticipant
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Participant UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Participant details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantDetails'
+        '404':
+          description: Participant not found
+
+  /admin/participants/{id}/reset-password:
+    post:
+      tags:
+        - Admin Participants
+      summary: Reset participant password
+      description: Generate temporary password for participant (admin only)
+      operationId: resetParticipantPassword
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Participant UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+        '404':
+          description: Participant not found
+        '403':
+          description: Not authorized
+
+  /admin/participants/search:
+    get:
+      tags:
+        - Admin Participants
+      summary: Search participants
+      description: Search participants by code, login identifier, or phone
+      operationId: searchParticipants
+      security:
+        - adminAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (code, email, username, or phone)
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParticipantSummary'
+
+components:
+  securitySchemes:
+    participantAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authenticated participants
+
+    adminAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for admin users
+
+  schemas:
+    # ============================================================
+    # REQUEST SCHEMAS
+    # ============================================================
+
+    ParticipantRegisterRequest:
+      type: object
+      required:
+        - loginIdentifier
+        - password
+      properties:
+        loginIdentifier:
+          type: string
+          description: Username or email address
+          minLength: 3
+          maxLength: 255
+          example: "john.doe@example.com"
+        password:
+          type: string
+          description: Password (minimum 8 characters)
+          minLength: 8
+          maxLength: 100
+          format: password
+          example: "SecurePass123"
+        phoneNumber:
+          type: string
+          description: Optional phone number
+          maxLength: 20
+          example: "+1234567890"
+
+    ParticipantLoginRequest:
+      type: object
+      required:
+        - loginIdentifier
+        - password
+      properties:
+        loginIdentifier:
+          type: string
+          description: Username or email address
+          example: "john.doe@example.com"
+        password:
+          type: string
+          format: password
+          example: "SecurePass123"
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: The refresh token
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          description: Current password (or temporary password from admin)
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: New password (minimum 8 characters)
+
+    # ============================================================
+    # RESPONSE SCHEMAS
+    # ============================================================
+
+    ParticipantRegisterResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: Auto-generated participant code
+          example: "A1"
+        loginIdentifier:
+          type: string
+          example: "john.doe@example.com"
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: Refresh token
+        expiresIn:
+          type: integer
+          description: Token expiration in seconds
+          example: 86400
+
+    ParticipantLoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: Refresh token
+        expiresIn:
+          type: integer
+          description: Token expiration in seconds
+          example: 86400
+        mustChangePassword:
+          type: boolean
+          description: Whether password change is required
+          example: false
+        participant:
+          $ref: '#/components/schemas/ParticipantProfile'
+
+    ParticipantProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: "A1"
+        loginIdentifier:
+          type: string
+          example: "john.doe@example.com"
+        phoneNumber:
+          type: string
+          nullable: true
+          example: "+1234567890"
+        createdAt:
+          type: string
+          format: date-time
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ParticipantDetails:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        loginIdentifier:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedLoginAttempts:
+          type: integer
+        isLocked:
+          type: boolean
+        lockoutEnd:
+          type: string
+          format: date-time
+          nullable: true
+        mustChangePassword:
+          type: boolean
+
+    ParticipantSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        loginIdentifier:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ParticipantListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipantSummary'
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+
+    PasswordResetResponse:
+      type: object
+      properties:
+        temporaryPassword:
+          type: string
+          description: The temporary password to give to participant
+          example: "TempPass#4829"
+        message:
+          type: string
+          example: "Password reset successful. Participant must change password on next login."
+
+    AccountLockedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Account is locked due to too many failed login attempts"
+        lockoutEnd:
+          type: string
+          format: date-time
+          description: When the lockout expires
+        remainingSeconds:
+          type: integer
+          description: Seconds until lockout expires
+          example: 45
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Operation completed successfully"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "One or more validation errors occurred"
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            loginIdentifier: ["Login identifier is required"]
+            password: ["Password must be at least 8 characters"]

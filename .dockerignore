@@ -1,0 +1,50 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+specs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+**/bin/
+**/obj/
+**/dist/
+**/build/
+**/.svelte-kit/
+**/node_modules/
+
+# Environment files
+.env*
+!.env.example
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+
+# Test and coverage
+**/coverage/
+**/TestResults/
+**/*.test.*
+**/*.spec.*
+**/tests/
+
+# Logs
+*.log
+**/logs/
+
+# Docker files (don't include in context)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db
