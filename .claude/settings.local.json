@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch:*)",
+      "Bash(ls:*)",
+      "Bash(pwsh -File:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(npx shadcn-svelte@latest add button card input label badge alert select table --yes)"
+    ]
+  }
+}
